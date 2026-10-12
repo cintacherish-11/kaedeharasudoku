@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kaedehara Kazuha - Inazuma Sudoku</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Cinzel:wght@600;700;800&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        anemo: {
+                            light: '#76C893',
+                            DEFAULT: '#2A6F57',
+                            dark: '#1E4E3D',
+                            deep: '#133529'
+                        },
+                        maple: {
+                            light: '#E74C3C',
+                            DEFAULT: '#C0392B',
+                            dark: '#8B0000'
+                        },
+                        amber: {
+                            gold: '#D4AC0D',
+                            warm: '#D68910'
+                        },
+                        kazuha: {
+                            cream: '#F9F5EC',
+                            card: '#FFFDF9',
+                            darkBg: '#111815'
+                        }
+                    },
+                    fontFamily: {
+                        cinzel: ['Cinzel', 'serif'],
+                        sans: ['Plus Jakarta Sans', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #F9F5EC;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(42, 111, 87, 0.12) 0%, transparent 45%),
+                radial-gradient(circle at 90% 80%, rgba(192, 57, 43, 0.10) 0%, transparent 45%);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            overflow-x: hidden;
+            user-select: none;
+        }
+
+        /* Falling Maple Leaves Animation Effect */
+        .leaf {
+            position: fixed;
+            top: -50px;
+            pointer-events: none;
+            z-index: 10;
+            animation: fall linear infinite;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));
+        }
+
+        @keyframes fall {
+            0% {
+                transform: translateY(0) rotate(0deg) translateX(0);
+                opacity: 0.9;
+            }
+            50% {
+                transform: translateY(50vh) rotate(180deg) translateX(40px);
+            }
+            100% {
+                transform: translateY(105vh) rotate(360deg) translateX(-30px);
+                opacity: 0.1;
+            }
+        }
+
+        /* Sudoku Cell Grid Styling */
+        .sudoku-cell {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.35rem;
+            cursor: pointer;
+            transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+            position: relative;
+            background-color: #FFFFFF;
+            border: 1px solid rgba(192, 57, 43, 0.2);
+        }
+
+        @media (min-width: 640px) {
+            .sudoku-cell {
+                font-size: 1.65rem;
+            }
+        }
+
+        /* 3x3 Sub-grid Thick Borders */
+        .border-r-thick { border-right: 3.5px solid #8B0000 !important; }
+        .border-b-thick { border-bottom: 3.5px solid #8B0000 !important; }
+
+        /* High Contrast Typography */
+        .sudoku-cell.given {
+            color: #2A0800 !important; /* Dark Burgundy Cokelat Ekstra Bold untuk Soal Bawaan */
+            background-color: #FAF4E8;
+            font-weight: 900;
+        }
+
+        .sudoku-cell.user-filled {
+            color: #0A5C46 !important; /* Hijau Anemo Kontras untuk Jawaban Pemain */
+            font-weight: 800;
+            background-color: #FFFFFF;
+        }
+
+        /* Red Highlight Effects when Cell/Number is Selected */
+        .sudoku-cell.highlighted {
+            background-color: rgba(192, 57, 43, 0.22) !important; /* Block Highlight Merah Maple */
+        }
+
+        .sudoku-cell.same-number {
+            background-color: rgba(192, 57, 43, 0.38) !important; /* Highlight Merah lebih pekat untuk Angka yang Sama */
+            font-weight: 900;
+        }
+
+        .sudoku-cell.selected {
+            background-color: rgba(192, 57, 43, 0.60) !important; /* Merah Maple Terang untuk Kotak Aktif */
+            color: #FFFFFF !important;
+            box-shadow: inset 0 0 0 3px #8B0000, 0 0 12px rgba(192, 57, 43, 0.6);
+            transform: scale(1.03);
+            z-index: 5;
+        }
+
+        /* Error Feedback */
+        .sudoku-cell.error {
+            background-color: #FFD1D1 !important;
+            color: #9E0000 !important;
+            animation: shake 0.25s ease-in-out 2;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-4px); }
+            75% { transform: translateX(4px); }
+        }
+
+        /* Pencil Notes Grid Layout */
+        .notes-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            width: 100%;
+            height: 100%;
+            padding: 2px;
+            font-size: 0.65rem;
+            line-height: 1;
+            color: #8B0000;
+            font-weight: 700;
+            pointer-events: none;
+        }
+
+        .note-num {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Floating Animation for Decorative Stickers */
+        .floating-sticker {
+            animation: float 4s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-8px) rotate(3deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen text-gray-800 flex flex-col justify-between relative pb-6">
+
+    <!-- Container for Animated Leaves -->
+    <div id="leaves-container"></div>
+
+    <!-- Header Banner -->
+    <header class="w-full bg-gradient-to-r from-anemo-dark via-anemo to-anemo-dark text-white py-3.5 px-4 shadow-lg relative overflow-hidden border-b-4 border-amber-gold">
+        <div class="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 relative z-10">
+            <!-- Header Title & Profile Avatar (kazuha-emoji.jpe) -->
+            <div class="flex items-center gap-3 text-center sm:text-left">
+                <div class="relative bg-white/20 p-1 rounded-2xl border-2 border-amber-gold/80 backdrop-blur-md shadow-md">
+                    <img src="kazuha-emoji.jpe" alt="Kazuha Emoji Avatar" class="w-12 h-12 sm:w-14 sm:h-14 object-cover rounded-xl" onerror="this.src='https://placehold.co/100x100/2A6F57/FFFFFF?text=Kazuha'">
+                </div>
+                <div>
+                    <h1 class="font-cinzel text-xl sm:text-2xl font-extrabold tracking-wider text-white drop-shadow">
+                        KAEDEHARA KAZUHA SUDOKU
+                    </h1>
+                    <p id="kazuha-quote" class="text-xs sm:text-sm text-emerald-100 italic font-light transition-all duration-500">
+                        "Leaves fall, autumn breeze speaks..."
+                    </p>
+                </div>
+            </div>
+
+            <!-- Element Badge -->
+            <div class="flex items-center gap-2 bg-black/30 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-amber-gold/50 text-xs sm:text-sm shadow">
+                <i class="fa-solid fa-wind text-anemo-light animate-pulse"></i>
+                <span class="font-bold text-amber-gold tracking-wide">楓原万葉 • Anemo</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="max-w-5xl mx-auto w-full px-3 sm:px-6 my-4 flex-grow flex flex-col lg:flex-row gap-6 items-center lg:items-start justify-center relative">
+
+        <!-- Left Decorative Floating Sticker (kazuha-sticker1.jpe) -->
+        <div class="hidden lg:block absolute -left-16 top-12 w-28 floating-sticker opacity-90 hover:opacity-100 transition">
+            <img src="kazuha-sticker1.jpe" alt="Kazuha Sticker Left" class="w-full drop-shadow-xl transform -rotate-6 hover:scale-110 transition duration-300" onerror="this.style.display='none'">
+        </div>
+
+        <!-- Left Side: Control Panel & Mascot Reaction -->
+        <section class="w-full lg:w-80 flex flex-col gap-4">
+            
+            <!-- Mascot Reaction Box (kazuha-paint.jpe) -->
+            <div class="bg-kazuha-card border-2 border-anemo/40 rounded-2xl p-4 shadow-lg flex flex-col items-center text-center relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-12 h-12 bg-maple/10 rounded-bl-full pointer-events-none"></div>
+                
+                <div class="relative w-28 h-28 sm:w-32 sm:h-32 my-1">
+                    <img id="kazuha-avatar" src="kazuha-paint.jpe" alt="Kazuha Reaction Mascot" class="w-full h-full object-contain drop-shadow-md transition-transform duration-300 hover:scale-105" onerror="this.src='https://placehold.co/120x120/C0392B/FFFFFF?text=Kazuha'">
+                </div>
+
+                <div class="inline-flex items-center gap-1 px-3 py-1 bg-maple/10 text-maple border border-maple/20 rounded-full text-xs font-bold mb-2">
+                    <i class="fa-solid fa-leaf text-maple"></i>
+                    <span>Wanderer's Thoughts</span>
+                </div>
+
+                <p id="kazuha-reaction" class="text-xs text-gray-700 italic bg-anemo/10 p-2.5 rounded-xl border border-anemo/20 w-full min-h-[50px] flex items-center justify-center">
+                    "As one with wind and cloud..."
+                </p>
+            </div>
+
+            <!-- Game Dashboard -->
+            <div class="bg-kazuha-card border-2 border-anemo/40 rounded-2xl p-4 shadow-lg flex flex-col gap-3">
+                <div class="flex items-center justify-between border-b border-gray-200 pb-2.5">
+                    <span class="text-xs font-bold text-anemo-dark uppercase tracking-wider flex items-center gap-1.5">
+                        <i class="fa-solid fa-sliders text-maple"></i> Kesulitan
+                    </span>
+                    <select id="difficulty-select" class="bg-anemo/10 border border-anemo/40 text-anemo-dark text-xs font-bold rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-anemo">
+                        <option value="easy">Mudah 🍃</option>
+                        <option value="medium" selected>Sedang 🍁</option>
+                        <option value="hard">Sulit 🌪️</option>
+                    </select>
+                </div>
+
+                <!-- Timer & Mistakes Stats -->
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="bg-emerald-50/80 border border-anemo/30 rounded-xl p-2.5 flex flex-col items-center">
+                        <span class="text-[10px] text-gray-500 uppercase font-semibold flex items-center gap-1">
+                            <i class="fa-regular fa-clock text-anemo"></i> Waktu
+                        </span>
+                        <span id="timer" class="font-mono text-lg font-extrabold text-anemo-dark">00:00</span>
+                    </div>
+                    <div class="bg-red-50/80 border border-maple/30 rounded-xl p-2.5 flex flex-col items-center">
+                        <span class="text-[10px] text-gray-500 uppercase font-semibold flex items-center gap-1">
+                            <i class="fa-solid fa-heart-crack text-maple"></i> Kesalahan
+                        </span>
+                        <span id="mistakes" class="font-mono text-lg font-extrabold text-maple">0 / 3</span>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-2 pt-1">
+                    <button id="btn-new-game" class="flex-1 bg-gradient-to-r from-anemo to-anemo-dark hover:from-anemo-dark hover:to-anemo-deep text-white text-xs font-bold py-2.5 px-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95">
+                        <i class="fa-solid fa-rotate-right"></i> Game Baru
+                    </button>
+                    <button id="btn-pause" class="bg-amber-gold hover:bg-amber-warm text-white text-xs font-bold px-3.5 py-2.5 rounded-xl shadow-md transition-all active:scale-95">
+                        <i id="pause-icon" class="fa-solid fa-pause"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Center Section: 9x9 Sudoku Board & Controls -->
+        <section class="w-full lg:w-auto flex flex-col items-center">
+            
+            <!-- Sudoku Outer Border Frame -->
+            <div class="bg-maple-dark p-2.5 sm:p-3.5 rounded-2xl shadow-2xl border-4 border-amber-gold/80 w-full max-w-[440px] relative">
+                
+                <!-- 9x9 Grid Container -->
+                <div id="sudoku-board" class="grid grid-cols-9 gap-[1px] bg-maple-dark border-2 border-maple-dark rounded-lg overflow-hidden shadow-inner">
+                    <!-- 81 Cells dynamically created by JS -->
+                </div>
+
+                <!-- Pause Overlay Screen (kazuha-star.jpe) -->
+                <div id="pause-overlay" class="hidden absolute inset-0 bg-anemo-dark/95 backdrop-blur-md rounded-2xl flex flex-col items-center justify-center text-white p-6 z-20">
+                    <img src="kazuha-star.jpe" alt="Kazuha Pause Sticker" class="w-20 h-20 mb-3 drop-shadow-md animate-bounce" onerror="this.src='https://placehold.co/80x80/D4AC0D/FFFFFF?text=★'">
+                    <h3 class="font-cinzel text-xl font-bold mb-1 text-amber-gold">Permainan Dijeda</h3>
+                    <p class="text-xs text-emerald-100 mb-4 text-center">"Dengarkanlah gema angin sebelum melanjutkan..."</p>
+                    <button id="btn-resume" class="bg-maple hover:bg-maple-dark text-white text-xs font-bold py-2.5 px-6 rounded-full shadow-lg transition-all transform hover:scale-105">
+                        Lanjutkan
+                    </button>
+                </div>
+            </div>
+
+            <!-- Utilities & Numpad Inputs -->
+            <div class="w-full max-w-[440px] mt-4 flex flex-col gap-3">
+                <!-- Utilities -->
+                <div class="grid grid-cols-4 gap-2">
+                    <button id="btn-undo" class="flex flex-col items-center justify-center p-2 bg-kazuha-card hover:bg-maple/10 border border-maple/30 rounded-xl text-maple-dark transition active:scale-95 shadow-sm">
+                        <i class="fa-solid fa-rotate-left text-sm mb-1"></i>
+                        <span class="text-[10px] font-bold">Undo</span>
+                    </button>
+                    <button id="btn-erase" class="flex flex-col items-center justify-center p-2 bg-kazuha-card hover:bg-maple/10 border border-maple/30 rounded-xl text-maple-dark transition active:scale-95 shadow-sm">
+                        <i class="fa-solid fa-eraser text-sm mb-1"></i>
+                        <span class="text-[10px] font-bold">Hapus</span>
+                    </button>
+                    <button id="btn-notes" class="flex flex-col items-center justify-center p-2 bg-kazuha-card hover:bg-maple/10 border border-maple/30 rounded-xl text-maple-dark transition active:scale-95 shadow-sm relative">
+                        <i class="fa-solid fa-pencil text-sm mb-1"></i>
+                        <span class="text-[10px] font-bold">Catatan</span>
+                        <span id="notes-badge" class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-gray-300"></span>
+                    </button>
+                    <button id="btn-hint" class="flex flex-col items-center justify-center p-2 bg-kazuha-card hover:bg-amber-gold/20 border border-amber-gold/50 rounded-xl text-amber-warm transition active:scale-95 shadow-sm">
+                        <i class="fa-solid fa-lightbulb text-sm mb-1"></i>
+                        <span class="text-[10px] font-bold">Petunjuk</span>
+                    </button>
+                </div>
+
+                <!-- On-Screen Numpad 1-9 -->
+                <div class="grid grid-cols-9 gap-1 sm:gap-1.5">
+                    <button class="numpad-btn bg-kazuha-card border-2 border-maple/30 hover:border-maple hover:bg-maple/10 text-maple-dark font-extrabold text-base sm:text-lg py-2.5 rounded-xl transition active:scale-95 shadow-sm" data-num="1">1</button>
+                    <button class="numpad-btn bg-kazuha-card border-2 border-maple/30 hover:border-maple hover:bg-maple/10 text-maple-dark font-extrabold text-base sm:text-lg py-2.5 rounded-xl transition active:scale-95 shadow-sm" data-num="2">2</button>
+                    <button class="numpad-btn bg-kazuha-card border-2 border-maple/30 hover:border-maple hover:bg-maple/10 text-maple-dark font-extrabold text-base sm:text-lg py-2.5 rounded-xl transition active:scale-95 shadow-sm" data-num="3">3</button>
+                    <button class="numpad-btn bg-kazuha-card border-2 border-maple/30 hover:border-maple hover:bg-maple/10 text-maple-dark font-extrabold text-base sm:text-lg py-2.5 rounded-xl transition active:scale-95 shadow-sm" data-num="4">4</button>
+                    <button class="numpad-btn bg-kazuha-card border-2 border-maple/30 hover:border-maple hover:bg-maple/10 text-maple-dark font-extrabold text-base sm:text-lg py-2.5 rounded-xl transition active:scale-95 shadow-sm" data-num="5">5</button>
+                    <button class="numpad-btn bg-kazuha-card border-2 border-maple/30 hover:border-maple hover:bg-maple/10 text-maple-dark font-extrabold text-base sm:text-lg py-2.5 rounded-xl transition active:scale-95 shadow-sm" data-num="6">6</button>
+                    <button class="numpad-btn bg-kazuha-card border-2 border-maple/30 hover:border-maple hover:bg-maple/10 text-maple-dark font-extrabold text-base sm:text-lg py-2.5 rounded-xl transition active:scale-95 shadow-sm" data-num="7">7</button>
+                    <button class="numpad-btn bg-kazuha-card border-2 border-maple/30 hover:border-maple hover:bg-maple/10 text-maple-dark font-extrabold text-base sm:text-lg py-2.5 rounded-xl transition active:scale-95 shadow-sm" data-num="8">8</button>
+                    <button class="numpad-btn bg-kazuha-card border-2 border-maple/30 hover:border-maple hover:bg-maple/10 text-maple-dark font-extrabold text-base sm:text-lg py-2.5 rounded-xl transition active:scale-95 shadow-sm" data-num="9">9</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Decorative Floating Sticker (kazuha-sticker2.jpe) -->
+        <div class="hidden lg:block absolute -right-16 top-12 w-28 floating-sticker opacity-90 hover:opacity-100 transition" style="animation-delay: -2s;">
+            <img src="kazuha-sticker2.jpe" alt="Kazuha Sticker Right" class="w-full drop-shadow-xl transform rotate-6 hover:scale-110 transition duration-300" onerror="this.style.display='none'">
+        </div>
+
+    </main>
+
+    <!-- Modal Results Popup (kazuha-star.jpe) -->
+    <div id="modal-result" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-kazuha-card border-2 border-amber-gold rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl relative">
+            
+            <div class="w-24 h-24 mx-auto mb-2 relative">
+                <img id="modal-sticker" src="kazuha-star.jpe" alt="Kazuha Victory Sticker" class="w-full h-full object-contain drop-shadow-lg" onerror="this.src='https://placehold.co/100x100/D4AC0D/FFFFFF?text=★'">
+            </div>
+
+            <h2 id="modal-title" class="font-cinzel text-2xl font-extrabold text-anemo-dark mb-1">Kemenangan!</h2>
+            <p id="modal-desc" class="text-xs text-gray-600 mb-4 italic">"Angin berbisik lembut, menandakan setiap langkahmu telah sempurna."</p>
+            
+            <div class="bg-anemo/10 rounded-xl p-3 mb-5 border border-anemo/20 text-xs flex justify-around">
+                <div>
+                    <span class="block text-gray-500">Total Waktu</span>
+                    <span id="modal-time" class="font-bold text-anemo-dark text-sm">02:45</span>
+                </div>
+                <div class="border-r border-gray-300"></div>
+                <div>
+                    <span class="block text-gray-500">Tingkat Kesulitan</span>
+                    <span id="modal-diff" class="font-bold text-anemo-dark text-sm">Sedang</span>
+                </div>
+            </div>
+
+            <button id="modal-btn-restart" class="w-full bg-gradient-to-r from-maple to-maple-dark text-white font-bold py-2.5 rounded-xl shadow-md hover:brightness-110 transition active:scale-95">
+                Main Lagi 🍁
+            </button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="text-center text-xs text-gray-500 py-2">
+        <p>Kaedehara Kazuha Sudoku Fan-Game • Genshin Impact Inspired</p>
+    </footer>
+
+    <script>
+        /* Quotes */
+        const kazuhaQuotes = [
+            "\"As one with wind and cloud...\"",
+            "\"Leaves fall, autumn breeze speaks...\"",
+            "\"Wherever I go, my sword and the wind follow.\"",
+            "\"There are leaf-shaped marks on the palm... indicating autumn is near.\"",
+            "\"Clear your mind, like quiet water in a bamboo forest.\""
+        ];
+
+        /* State Variables */
+        let solutionBoard = [];
+        let initialBoard = [];
+        let currentBoard = [];
+        let notesGrid = [];
+        let history = [];
+        
+        let selectedCell = -1;
+        let isNotesMode = false;
+        let mistakesCount = 0;
+        const maxMistakes = 3;
+        
+        let timerInterval = null;
+        let secondsElapsed = 0;
+        let isPaused = false;
+
+        /* DOM Elements */
+        const boardEl = document.getElementById('sudoku-board');
+        const timerEl = document.getElementById('timer');
+        const mistakesEl = document.getElementById('mistakes');
+        const quoteEl = document.getElementById('kazuha-quote');
+        const reactionEl = document.getElementById('kazuha-reaction');
+        const avatarEl = document.getElementById('kazuha-avatar');
+        const notesBtn = document.getElementById('btn-notes');
+        const notesBadge = document.getElementById('notes-badge');
+        const pauseOverlay = document.getElementById('pause-overlay');
+
+        window.onload = function() {
+            createLeaves();
+            setupEventListeners();
+            startNewGame();
+        };
+
+        /* Floating Leaves Animation Engine */
+        function createLeaves() {
+            const container = document.getElementById('leaves-container');
+            const leafColors = ['#C0392B', '#8B0000', '#D4AC0D', '#2A6F57'];
+            
+            for (let i = 0; i < 15; i++) {
+                const leaf = document.createElement('div');
+                leaf.className = 'leaf';
+                leaf.style.left = Math.random() * 100 + 'vw';
+                leaf.style.animationDuration = (Math.random() * 8 + 6) + 's';
+                leaf.style.animationDelay = (Math.random() * 5) + 's';
+                
+                const size = Math.random() * 16 + 12;
+                const color = leafColors[Math.floor(Math.random() * leafColors.length)];
+                
+                leaf.innerHTML = `
+                    <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}">
+                        <path d="M12,2C11.5,4 10,7 8,8C6,9 3,8.5 2,10C1,11.5 3,13.5 4.5,14C6,14.5 7,13.5 8.5,15C10,16.5 9,19 10.5,20.5C11.2,21.2 11.8,21.8 12,22C12.2,21.8 12.8,21.2 13.5,20.5C15,19 14,16.5 15.5,15C17,13.5 18,14.5 19.5,14C21,13.5 23,11.5 22,10C21,8.5 18,9 16,8C14,7 12.5,4 12,2Z"/>
+                    </svg>
+                `;
+                container.appendChild(leaf);
+            }
+        }
+
+        /* Sudoku Generator & Backtracking Algorithm */
+        function generateSudoku(difficulty) {
+            let board = Array(81).fill(0);
+            fillGrid(board);
+            solutionBoard = [...board];
+
+            let attempts = 30; // Easy
+            if (difficulty === 'medium') attempts = 42;
+            if (difficulty === 'hard') attempts = 52;
+
+            let puzzle = [...solutionBoard];
+            while (attempts > 0) {
+                let idx = Math.floor(Math.random() * 81);
+                if (puzzle[idx] !== 0) {
+                    puzzle[idx] = 0;
+                    attempts--;
+                }
+            }
+            initialBoard = [...puzzle];
+            currentBoard = [...puzzle];
+            notesGrid = Array.from({ length: 81 }, () => []);
+            history = [];
+        }
+
+        function fillGrid(board) {
+            for (let i = 0; i < 81; i++) {
+                if (board[i] === 0) {
+                    let nums = [1,2,3,4,5,6,7,8,9].sort(() => Math.random() - 0.5);
+                    for (let num of nums) {
+                        if (isValid(board, i, num)) {
+                            board[i] = num;
+                            if (fillGrid(board)) return true;
+                            board[i] = 0;
+                        }
+                    }
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function isValid(board, index, num) {
+            let row = Math.floor(index / 9);
+            let col = index % 9;
+            let boxRow = Math.floor(row / 3) * 3;
+            let boxCol = Math.floor(col / 3) * 3;
+
+            for (let i = 0; i < 9; i++) {
+                if (board[row * 9 + i] === num) return false;
+                if (board[i * 9 + col] === num) return false;
+                let r = boxRow + Math.floor(i / 3);
+                let c = boxCol + (i % 3);
+                if (board[r * 9 + c] === num) return false;
+            }
+            return true;
+        }
+
+        function renderBoard() {
+            boardEl.innerHTML = '';
+            
+            for (let i = 0; i < 81; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'sudoku-cell';
+                
+                let row = Math.floor(i / 9);
+                let col = i % 9;
+
+                if (col === 2 || col === 5) cell.classList.add('border-r-thick');
+                if (row === 2 || row === 5) cell.classList.add('border-b-thick');
+
+                if (initialBoard[i] !== 0) {
+                    cell.classList.add('given');
+                    cell.textContent = initialBoard[i];
+                } else if (currentBoard[i] !== 0) {
+                    cell.classList.add('user-filled');
+                    cell.textContent = currentBoard[i];
+                    
+                    if (currentBoard[i] !== solutionBoard[i]) {
+                        cell.classList.add('error');
+                    }
+                } else {
+                    if (notesGrid[i] && notesGrid[i].length > 0) {
+                        const notesContainer = document.createElement('div');
+                        notesContainer.className = 'notes-grid';
+                        for (let n = 1; n <= 9; n++) {
+                            const noteNum = document.createElement('div');
+                            noteNum.className = 'note-num';
+                            if (notesGrid[i].includes(n)) {
+                                noteNum.textContent = n;
+                            }
+                            notesContainer.appendChild(noteNum);
+                        }
+                        cell.appendChild(notesContainer);
+                    }
+                }
+
+                cell.dataset.index = i;
+                cell.addEventListener('click', () => selectCell(i));
+                boardEl.appendChild(cell);
+            }
+
+            updateHighlights();
+        }
+
+        function selectCell(index) {
+            selectedCell = index;
+            updateHighlights();
+        }
+
+        /* Red Highlight Engine on Click */
+        function updateHighlights() {
+            const cells = boardEl.children;
+            if (selectedCell === -1) return;
+
+            const selRow = Math.floor(selectedCell / 9);
+            const selCol = selectedCell % 9;
+            const selVal = currentBoard[selectedCell];
+
+            for (let i = 0; i < 81; i++) {
+                const cell = cells[i];
+                cell.classList.remove('selected', 'highlighted', 'same-number');
+
+                const r = Math.floor(i / 9);
+                const c = i % 9;
+
+                const isSameRow = r === selRow;
+                const isSameCol = c === selCol;
+                const isSameBlock = (Math.floor(r / 3) === Math.floor(selRow / 3) && Math.floor(c / 3) === Math.floor(selCol / 3));
+
+                if (i === selectedCell) {
+                    cell.classList.add('selected');
+                } else if (isSameRow || isSameCol || isSameBlock) {
+                    cell.classList.add('highlighted');
+                }
+
+                if (selVal !== 0 && currentBoard[i] === selVal) {
+                    cell.classList.add('same-number');
+                }
+            }
+        }
+
+        /* User Input and Actions */
+        function handleInput(num) {
+            if (selectedCell === -1 || initialBoard[selectedCell] !== 0 || isPaused) return;
+
+            saveState();
+
+            if (isNotesMode) {
+                let notes = notesGrid[selectedCell];
+                if (notes.includes(num)) {
+                    notesGrid[selectedCell] = notes.filter(n => n !== num);
+                } else {
+                    notesGrid[selectedCell].push(num);
+                }
+                currentBoard[selectedCell] = 0;
+            } else {
+                notesGrid[selectedCell] = [];
+                currentBoard[selectedCell] = num;
+
+                if (num !== solutionBoard[selectedCell]) {
+                    mistakesCount++;
+                    mistakesEl.textContent = `${mistakesCount} / ${maxMistakes}`;
+                    reactionEl.textContent = "\"Jangan risau, hembusan angin pun kadang berbelok...\"";
+                    avatarEl.src = "kazuha-paint.jpe";
+
+                    if (mistakesCount >= maxMistakes) {
+                        endGame(false);
+                        return;
+                    }
+                } else {
+                    reactionEl.textContent = "\"Langkah yang tepat. Angin berada di pihakmu.\"";
+                    avatarEl.src = "kazuha-star.jpe";
+                    checkWin();
+                }
+            }
+
+            renderBoard();
+        }
+
+        function eraseCell() {
+            if (selectedCell === -1 || initialBoard[selectedCell] !== 0 || isPaused) return;
+            saveState();
+            currentBoard[selectedCell] = 0;
+            notesGrid[selectedCell] = [];
+            renderBoard();
+        }
+
+        function giveHint() {
+            if (selectedCell === -1 || initialBoard[selectedCell] !== 0 || isPaused) return;
+            saveState();
+            currentBoard[selectedCell] = solutionBoard[selectedCell];
+            notesGrid[selectedCell] = [];
+            reactionEl.textContent = "\"Biarkan hembusan Anemo memberimu petunjuk...\"";
+            avatarEl.src = "kazuha-star.jpe";
+            renderBoard();
+            checkWin();
+        }
+
+        function saveState() {
+            history.push({
+                board: [...currentBoard],
+                notes: notesGrid.map(arr => [...arr])
+            });
+            if (history.length > 20) history.shift();
+        }
+
+        function undo() {
+            if (history.length === 0 || isPaused) return;
+            const lastState = history.pop();
+            currentBoard = [...lastState.board];
+            notesGrid = lastState.notes.map(arr => [...arr]);
+            renderBoard();
+        }
+
+        function checkWin() {
+            for (let i = 0; i < 81; i++) {
+                if (currentBoard[i] !== solutionBoard[i]) return;
+            }
+            endGame(true);
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            secondsElapsed = 0;
+            timerEl.textContent = '00:00';
+            timerInterval = setInterval(() => {
+                if (!isPaused) {
+                    secondsElapsed++;
+                    let m = Math.floor(secondsElapsed / 60).toString().padStart(2, '0');
+                    let s = (secondsElapsed % 60).toString().padStart(2, '0');
+                    timerEl.textContent = `${m}:${s}`;
+                }
+            }, 1000);
+        }
+
+        function startNewGame() {
+            const diff = document.getElementById('difficulty-select').value;
+            mistakesCount = 0;
+            mistakesEl.textContent = `0 / ${maxMistakes}`;
+            selectedCell = -1;
+            isPaused = false;
+            pauseOverlay.classList.add('hidden');
+            document.getElementById('pause-icon').className = 'fa-solid fa-pause';
+
+            quoteEl.textContent = kazuhaQuotes[Math.floor(Math.random() * kazuhaQuotes.length)];
+            reactionEl.textContent = "\"Selamat datang, pengembara. Mari tenangkan pikiranmu...\"";
+            avatarEl.src = "kazuha-paint.jpe";
+
+            generateSudoku(diff);
+            renderBoard();
+            startTimer();
+        }
+
+        function endGame(isWin) {
+            clearInterval(timerInterval);
+            const modal = document.getElementById('modal-result');
+            const title = document.getElementById('modal-title');
+            const desc = document.getElementById('modal-desc');
+            const sticker = document.getElementById('modal-sticker');
+            const time = document.getElementById('modal-time');
+            const diff = document.getElementById('modal-diff');
+
+            time.textContent = timerEl.textContent;
+            diff.textContent = document.getElementById('difficulty-select').options[document.getElementById('difficulty-select').selectedIndex].text;
+
+            if (isWin) {
+                sticker.src = "kazuha-star.jpe";
+                title.textContent = "Kemenangan Sempurna!";
+                desc.textContent = "\"Angin berbisik lembut, menandakan setiap langkahmu telah sempurna.\"";
+            } else {
+                sticker.src = "kazuha-paint.jpe";
+                title.textContent = "Permainan Selesai";
+                desc.textContent = "\"Perjalanan belum berakhir. Ambil napas dalam-dalam, dan mari coba kembali.\"";
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function setupEventListeners() {
+            document.querySelectorAll('.numpad-btn').forEach(btn => {
+                btn.addEventListener('click', () => handleInput(parseInt(btn.dataset.num)));
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key >= '1' && e.key <= '9') {
+                    handleInput(parseInt(e.key));
+                } else if (e.key === 'Backspace' || e.key === 'Delete') {
+                    eraseCell();
+                } else if (e.key.toLowerCase() === 'n') {
+                    toggleNotesMode();
+                }
+            });
+
+            document.getElementById('btn-new-game').addEventListener('click', startNewGame);
+            document.getElementById('btn-erase').addEventListener('click', eraseCell);
+            document.getElementById('btn-hint').addEventListener('click', giveHint);
+            document.getElementById('btn-undo').addEventListener('click', undo);
+
+            notesBtn.addEventListener('click', toggleNotesMode);
+
+            document.getElementById('btn-pause').addEventListener('click', togglePause);
+            document.getElementById('btn-resume').addEventListener('click', togglePause);
+
+            document.getElementById('modal-btn-restart').addEventListener('click', () => {
+                document.getElementById('modal-result').classList.add('hidden');
+                startNewGame();
+            });
+
+            document.getElementById('difficulty-select').addEventListener('change', startNewGame);
+        }
+
+        function toggleNotesMode() {
+            isNotesMode = !isNotesMode;
+            if (isNotesMode) {
+                notesBtn.classList.add('bg-maple/20', 'border-maple');
+                notesBadge.classList.replace('bg-gray-300', 'bg-maple');
+            } else {
+                notesBtn.classList.remove('bg-maple/20', 'border-maple');
+                notesBadge.classList.replace('bg-maple', 'bg-gray-300');
+            }
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            const icon = document.getElementById('pause-icon');
+            if (isPaused) {
+                pauseOverlay.classList.remove('hidden');
+                icon.className = 'fa-solid fa-play';
+            } else {
+                pauseOverlay.classList.add('hidden');
+                icon.className = 'fa-solid fa-pause';
+            }
+        }
+    </script>
+</body>
+</html>
